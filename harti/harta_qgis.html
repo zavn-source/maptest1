@@ -184,6 +184,7 @@
     L.DomEvent.disableScrollPropagation(layerContainer);
 
     // 7. Funcție pentru adăugarea straturilor QGIS cu control dedicat de opacitate
+   // 7. Funcție pentru adăugarea straturilor QGIS cu control dedicat de opacitate
     let layerCounter = 0;
     function addQGISLayer(data, labelName) {
       layerCounter++;
@@ -228,8 +229,9 @@
       // HTML pentru numele stratului și slider-ul de opacitate sub el
       const labelHTML = `
         <span style="font-weight:bold; color:#0f172a;">${labelName}</span>
-        <div class="layer-opacity-control">
+        <div class="layer-opacity-control" onclick="event.stopPropagation();">
           Opacitate: <input type="range" min="0" max="1" step="0.1" value="0.3" 
+            onclick="event.stopPropagation();"
             oninput="changeLayerOpacity('${layerId}', this.value)">
         </div>
       `;
@@ -238,40 +240,17 @@
       layerControl.addOverlay(layer, labelHTML);
     }
 
-    // Funcție apelată de sliderul de opacitate
+    // Funcție corectată pentru schimbarea opacității tuturor sub-straturilor
     window.changeLayerOpacity = function(layerId, val) {
       const targetLayer = window[layerId];
       if (targetLayer) {
         const opacityVal = parseFloat(val);
-        targetLayer.setStyle({ fillOpacity: opacityVal, opacity: opacityVal });
-      }
-    };
-
-    // 8. Date fallback
-    const defaultFallbackData = {
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "properties": {
-            "Nume": "Zonă demonstrativă Chișinău",
-            "Sursa": "Poligon implicit (Fallback)",
-            "Descriere": "Dacă vezi acest poligon, înseamnă că fișierul strat_qgis.geojson nu a fost încărcat sau lipsește."
-          },
-          "geometry": {
-            "type": "Polygon",
-            "coordinates": [
-              [
-                [28.8200, 47.0100],
-                [28.8500, 47.0100],
-                [28.8500, 47.0300],
-                [28.8200, 47.0300],
-                [28.8200, 47.0100]
-              ]
-            ]
+        targetLayer.eachLayer(function(l) {
+          if (l.setStyle) {
+            l.setStyle({ fillOpacity: opacityVal, opacity: opacityVal });
           }
-        }
-      ]
+        });
+      }
     };
 
     // 9. Încărcare fișier GeoJSON din QGIS
