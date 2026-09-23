@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- CSS & JS pentru Leaflet Geoman (Unelte Măsurare & Desenare) -->
+  <!-- CSS & JS pentru Leaflet Geoman -->
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 
@@ -66,9 +66,7 @@
     // 1. Inițializăm harta pe coordonatele Chișinăului
     const map = L.map('map').setView([47.0167, 28.8333], 13);
 
-    // -------------------------------------------------------------
-    // 2. Inițializare Bara de Unelte Geoman (Măsurat/Desenat)
-    // -------------------------------------------------------------
+    // 2. Setări Geoman + Activare Măsurători
     map.pm.addControls({
       position: 'topleft',
       drawMarker: true,
@@ -77,20 +75,63 @@
       drawPolygon: true,
       drawCircle: false,
       drawCircleMarker: false,
-      editMode: true,
-      dragMode: false,
+      editMode: false,      // Fără editare noduri pe stratul extern
+      dragMode: false,      // Fără mutare
       cutPolygon: false,
-      removalMode: true
+      removalMode: true     // Permite ștergerea DOAR a geometriilor desenate de tine
     });
 
-    // Setăm opțiunea de măsurare direct pe ecran
+    // Configurare opțiuni globale de măsurare
     map.pm.setGlobalOptions({
+      tooltips: true,
       measurements: {
-        displayFormat: 'metric' // Arată metri/kilometri și m²
+        measurement: true,
+        displayFormat: 'metric' // m, km, m²
       }
     });
 
-    // 3. Straturile de fundal (Base Layers)
+    // Calculează și afișează lungimea / aria în popup pentru fiecare geometrie desenată
+    map.on('pm:create', function(e) {
+      const layer = e.layer;
+      
+      // Dacă stratul desenat este protejat, nu facem nimic
+      if (layer.options && layer.options.pmIgnore) return;
+
+      if (e.shape === 'Line' || e.shape === 'Polyline') {
+        let distance = 0;
+        const latlngs = layer.getLatLngs();
+        for (let i = 0; i < latlngs.length - 1; i++) {
+          distance += latlngs[i].distanceTo(latlngs[i + 1]);
+        }
+        let text = distance > 1000 
+          ? (distance / 1000).toFixed(2) + ' km' 
+          : distance.toFixed(1) + ' m';
+        layer.bindPopup(`<b>Lungime:</b> ${text}`).openPopup();
+      } 
+      else if (e.shape === 'Polygon' || e.shape === 'Rectangle') {
+        const latlngs = layer.getLatLngs()[0];
+        // Calcul arie folosind L.GeometryUtil sau calcul aproximativ
+        let area = 0;
+        if (L.GeometryUtil && L.GeometryUtil.geodesicArea) {
+          area = L.GeometryUtil.geodesicArea(latlngs);
+        } else {
+          // Calcul perimetru ca fallback
+          let perimeter = 0;
+          for (let i = 0; i < latlngs.length; i++) {
+            let nextIndex = (i + 1) % latlngs.length;
+            perimeter += latlngs[i].distanceTo(latlngs[nextIndex]);
+          }
+          layer.bindPopup(`<b>Perimetru:</b> ${perimeter > 1000 ? (perimeter/1000).toFixed(2) + ' km' : perimeter.toFixed(1) + ' m'}`).openPopup();
+          return;
+        }
+        let text = area > 10000 
+          ? (area / 10000).toFixed(2) + ' ha (' + (area / 1000000).toFixed(2) + ' km²)' 
+          : area.toFixed(1) + ' m²';
+        layer.bindPopup(`<b>Suprafață:</b> ${text}`).openPopup();
+      }
+    });
+
+    // 3. Straturile de fundal
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
       maxZoom: 20,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -102,7 +143,7 @@
       attribution: '© CARTO / OpenStreetMap'
     });
 
-    // 4. Adăugăm Butonul „Înapoi la Lista de Hărți”
+    // 4. Butonul „Înapoi”
     const backControl = L.control({ position: 'topleft' });
     backControl.onAdd = function () {
       const div = L.DomUtil.create('div');
@@ -120,7 +161,7 @@
     const overlayMaps = {};
     const layerControl = L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
 
-    let qgisLayer; // Stratul vectorial
+    let qgisLayer;
 
     // Poligon de rezervă (Fallback)
     const defaultFallbackData = {
@@ -152,6 +193,7 @@
     // Funcție pentru adăugarea datelor GeoJSON pe hartă
     function renderGeoJSON(data, label) {
       qgisLayer = L.geoJSON(data, {
+        pmIgnore: true, // Stratul GeoJSON din QGIS este protejat complet
         style: {
           color: "#ff3300",
           weight: 3,
@@ -179,12 +221,10 @@
         }
       }).addTo(map);
 
-      // Zoom automat pe suprafața stratului
       if (qgisLayer.getBounds().isValid()) {
         map.fitBounds(qgisLayer.getBounds());
       }
 
-      // Adăugare în meniul din dreapta-sus
       layerControl.addOverlay(qgisLayer, label);
     }
 
@@ -226,7 +266,5 @@
     });
   </script>
 
-</body>
-</html>
 </body>
 </html>
