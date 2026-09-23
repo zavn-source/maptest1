@@ -186,10 +186,13 @@
 // 7. Funcție optimizată pentru adăugarea straturilor QGIS cu control dedicat de opacitate
     let layerCounter = 0;
     function addQGISLayer(data, labelName) {
+      if (!data) return;
+
       layerCounter++;
       const layerId = 'qgis_layer_' + layerCounter;
 
-      const layer = L.geoJSON(data, {
+      // Creăm stratul GeoJSON
+      const qgisLayerGroup = L.geoJSON(data, {
         style: function(feature) {
           return {
             color: "#ff3300",
@@ -210,8 +213,10 @@
           });
         },
         onEachFeature: function (feature, layerObj) {
-          // Protejăm fiecare obiect individual pentru a nu putea fi editat/șters de Geoman
-          layerObj.options.pmIgnore = true;
+          // Protejăm fiecare obiect individual pentru a nu fi modificat de Geoman
+          if (layerObj.options) {
+            layerObj.options.pmIgnore = true;
+          }
 
           if (feature.properties) {
             let popupContent = "<b>Atribute obiect:</b><br><hr style='margin:4px 0;'>";
@@ -221,24 +226,27 @@
             layerObj.bindPopup(popupContent);
           }
         }
-      }).addTo(map);
+      });
 
-      // Setăm ignorarea Geoman și la nivel de grup de straturi
-      layer.options.pmIgnore = true;
+      // Îl adăugăm pe hartă
+      qgisLayerGroup.addTo(map);
 
-      // Zoom automat pe extinderea stratului dacă datele sunt valide
+      // Protejăm și grupul la nivel de Geoman
+      qgisLayerGroup.options.pmIgnore = true;
+
+      // Zoom automat pe extinderea stratului
       try {
-        if (layer.getBounds().isValid()) {
-          map.fitBounds(layer.getBounds());
+        if (qgisLayerGroup.getBounds && qgisLayerGroup.getBounds().isValid()) {
+          map.fitBounds(qgisLayerGroup.getBounds());
         }
       } catch (err) {
         console.warn("Nu s-au putut calcula limitele stratului:", err);
       }
 
       // Salvăm referința globală pentru slider
-      window[layerId] = layer;
+      window[layerId] = qgisLayerGroup;
 
-      // HTML pentru numele stratului și slider-ul de opacitate sub el
+      // HTML pentru numele stratului și slider-ul de opacitate
       const labelHTML = `
         <span style="font-weight:bold; color:#0f172a;">${labelName}</span>
         <div class="layer-opacity-control" onclick="event.stopPropagation();">
@@ -248,8 +256,8 @@
         </div>
       `;
 
-      // Adăugăm stratul peste hartă în selectorul de straturi
-      layerControl.addOverlay(layer, labelHTML);
+      // Adăugăm stratul validat în meniul de straturi
+      layerControl.addOverlay(qgisLayerGroup, labelHTML);
     }
 
     // Funcție apelată de slider pentru schimbarea opacității tuturor sub-straturilor
