@@ -111,13 +111,22 @@
     .btn-deschide:hover {
       background-color: #1d4ed8;
     }
+
+    .btn-disabled {
+      background-color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .btn-disabled:hover {
+      background-color: #64748b;
+    }
   </style>
 </head>
 <body>
 
   <div class="container">
     <header>
-      <h1>🗺️ Geoportal Hărți </h1>
+      <h1>🗺️ Geoportal Hărți</h1>
       <p>Selectează o hartă din lista de mai jos pentru vizualizare și analiză</p>
     </header>
 
@@ -139,7 +148,7 @@
         <div class="card-continut">
           <h2 class="card-titlu">Plan Urbanistic / Terenuri</h2>
           <p class="card-descriere">Vizualizarea zonelor funcționale și a limitelor cadastrale pentru proiecte de construcții.</p>
-          <a href="#" class="btn-deschide" onclick="alert('Harta va fi disponibilă în curând!')">În curând</a>
+          <a href="#" class="btn-deschide btn-disabled" onclick="alert('Harta va fi disponibilă în curând!')">În curând</a>
         </div>
       </div>
 
@@ -149,7 +158,7 @@
         <div class="card-continut">
           <h2 class="card-titlu">Rețele Edilitare</h2>
           <p class="card-descriere">Hartă pentru infrastructura de apă, canalizare și gaz din zonă.</p>
-          <a href="#" class="btn-deschide" onclick="alert('Harta va fi disponibilă în curând!')">În curând</a>
+          <a href="#" class="btn-deschide btn-disabled" onclick="alert('Harta va fi disponibilă în curând!')">În curând</a>
         </div>
       </div>
 
