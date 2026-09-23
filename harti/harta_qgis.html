@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 
-  <!-- JS Turf.js pentru calcule exacte de arie și perimetru -->
+  <!-- JS Turf.js pentru calcule de arie și perimetru -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -44,28 +44,21 @@
       background: #f1f5f9;
     }
 
-    /* Stil pentru controalele de opacitate din selectorul de straturi */
-    .layer-opacity-control {
-      margin-top: 4px;
-      margin-bottom: 8px;
-      font-size: 11px;
-      color: #475569;
-    }
-    .layer-opacity-control input {
-      width: 100%;
-      cursor: pointer;
-      margin-top: 2px;
-    }
-
-    /* Stil pentru titlurile de secțiune din selectorul de straturi */
-    .leaflet-control-layers-group-title {
+    /* Stil pentru panoul de opacitate separat (jos-dreapta) */
+    .opacity-control {
+      background: white;
+      padding: 10px 14px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      font-size: 13px;
       font-weight: bold;
-      font-size: 12px;
       color: #0f172a;
-      border-bottom: 1px solid #e2e8f0;
-      margin-top: 6px;
-      margin-bottom: 4px;
-      padding-bottom: 2px;
+    }
+    .opacity-control input {
+      display: block;
+      margin-top: 5px;
+      cursor: pointer;
+      width: 120px;
     }
   </style>
 </head>
@@ -77,7 +70,7 @@
     // 1. Inițializăm harta pe coordonatele Chișinăului
     const map = L.map('map').setView([47.0167, 28.8333], 13);
 
-    // 2. Setări Geoman + Activare Măsurători (fără opțiunea de rotire)
+    // 2. Setări Geoman (Măsurători & Desenare)
     map.pm.addControls({
       position: 'topleft',
       drawMarker: true,
@@ -86,14 +79,14 @@
       drawPolygon: true,
       drawCircle: false,
       drawCircleMarker: false,
-      editMode: false,      // Fără editare noduri pe straturi externe
+      editMode: false,      // Fără editare noduri pe stratul QGIS
       dragMode: false,      // Fără mutare
       cutPolygon: false,
-      rotateMode: false,    // Butonul de rotire a fost scos
-      removalMode: true     // Permite ștergerea geometriilor desenate
+      rotateMode: false,    // Butonul de rotire dezactivat
+      removalMode: true     // Permite ștergerea desenelor proprii
     });
 
-    // 3. Calcul Arie și Perimetru cu Turf.js la crearea geometriilor
+    // 3. Calcul Arie și Perimetru cu Turf.js
     map.on('pm:create', function(e) {
       const layer = e.layer;
       
@@ -124,7 +117,7 @@
       }
     });
 
-    // 4. Straturile de fundal (Base Layers)
+    // 4. Straturile de fundal
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
       maxZoom: 20,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -146,7 +139,7 @@
     };
     backControl.addTo(map);
 
-// 6. Meniul de straturi cu deschidere la CLICK
+    // 6. Selectorul de straturi (Meniu standard Leaflet)
     const baseMaps = {
       "Google Satelit": googleSat,
       "Esri Topografic": esriTopo
@@ -158,39 +151,13 @@
       collapsed: true 
     }).addTo(map);
 
-    const layerContainer = layerControl.getContainer();
-    
-    // Отключаем открытие по наведению курсора (hover)
-    L.DomEvent.off(layerContainer, 'mouseover', layerControl._expand, layerControl);
-    L.DomEvent.off(layerContainer, 'mouseout', layerControl._collapse, layerControl);
+    // 7. Variabilă globală pentru stratul QGIS
+    let qgisLayerGroup = null;
 
-    // Переключение меню строго по клику на иконку
-    let menuOpen = false;
-    L.DomEvent.on(layerContainer, 'click', function (e) {
-      if (e.target.classList.contains('leaflet-control-layers-toggle')) {
-        if (menuOpen) {
-          layerControl.collapse();
-          menuOpen = false;
-        } else {
-          layerControl.expand();
-          menuOpen = true;
-        }
-      }
-    });
-
-    L.DomEvent.disableClickPropagation(layerContainer);
-    L.DomEvent.disableScrollPropagation(layerContainer);
-    
-// 7. Funcție optimizată pentru adăugarea straturilor QGIS cu control de opacitate
-    let layerCounter = 0;
     function addQGISLayer(data, labelName) {
       if (!data) return;
 
-      layerCounter++;
-      const layerId = 'qgis_layer_' + layerCounter;
-
-      // stratul GeoJSON
-      const qgisLayerGroup = L.geoJSON(data, {
+      qgisLayerGroup = L.geoJSON(data, {
         style: function () {
           return {
             color: "#ff3300",
@@ -214,7 +181,7 @@
         },
         onEachFeature: function (feature, layerObj) {
           if (layerObj && layerObj.options) {
-            layerObj.options.pmIgnore = true; // reparare Geoman
+            layerObj.options.pmIgnore = true; // Protecție Geoman
           }
 
           if (feature.properties) {
@@ -227,11 +194,10 @@
         }
       });
 
-      // adaugare pe harta
       qgisLayerGroup.addTo(map);
       qgisLayerGroup.options.pmIgnore = true;
 
-      // auto scalare
+      // Auto-zoom pe extinderea stratului
       try {
         if (qgisLayerGroup.getBounds && qgisLayerGroup.getBounds().isValid()) {
           map.fitBounds(qgisLayerGroup.getBounds());
@@ -240,34 +206,38 @@
         console.warn("Nu s-au putut calcula limitele stratului:", err);
       }
 
-      // save linkul global
-      window[layerId] = qgisLayerGroup;
-
-      // HTML inauntrul modificarii straturilor
-      const labelHTML = `${labelName}<br>` +
-        `<div class="layer-opacity-control" style="margin-top:2px;" onclick="event.stopPropagation();">` +
-        `Opacitate: <input type="range" min="0" max="1" step="0.1" value="0.3" ` +
-        `oninput="changeLayerOpacity('${layerId}', this.value)" onclick="event.stopPropagation();">` +
-        `</div>`;
-
-      // registrarea stratului in meiul Leaflet
-      layerControl.addOverlay(qgisLayerGroup, labelHTML);
+      // Adăugare curată în selectorul de straturi
+      layerControl.addOverlay(qgisLayerGroup, labelName);
     }
 
-    // modificarea opacitatii tuturor geometriilor in strat
-    window.changeLayerOpacity = function (layerId, val) {
-      const targetLayer = window[layerId];
-      if (targetLayer) {
-        const opacityVal = parseFloat(val);
-        targetLayer.eachLayer(function (l) {
-          if (l.setStyle) {
-            l.setStyle({ fillOpacity: opacityVal, opacity: opacityVal });
-          }
-        });
-      }
+    // 8. Panou plutitor simplificat pentru opacitate (jos-dreapta)
+    const opacityControl = L.control({ position: 'bottomright' });
+    opacityControl.onAdd = function () {
+      const div = L.DomUtil.create('div', 'opacity-control');
+      div.innerHTML = `
+        <label for="opacitySlider">Opacitate strat QGIS:</label>
+        <input id="opacitySlider" type="range" min="0" max="1" step="0.1" value="0.3">
+      `;
+      L.DomEvent.disableClickPropagation(div);
+      return div;
     };
+    opacityControl.addTo(map);
 
-// 8. Poligon de rezervă (Fallback) în Chișinău dacă fișierul GeoJSON extern nu este găsit
+    // Ajustare opacitate
+    document.addEventListener('input', function (e) {
+      if (e.target && e.target.id === 'opacitySlider') {
+        const val = parseFloat(e.target.value);
+        if (qgisLayerGroup) {
+          qgisLayerGroup.eachLayer(function (l) {
+            if (l.setStyle) {
+              l.setStyle({ fillOpacity: val, opacity: val });
+            }
+          });
+        }
+      }
+    });
+
+    // 9. Date de rezervă (Fallback)
     const defaultFallbackData = {
       "type": "FeatureCollection",
       "features": [
@@ -294,7 +264,7 @@
       ]
     };
 
-    // 9. Încărcare fișier GeoJSON din QGIS
+    // 10. Încărcare fișier GeoJSON din QGIS
     fetch('../straturi/strat_qgis.geojson')
       .then(response => {
         if (!response.ok) {
@@ -309,8 +279,5 @@
       .catch(error => {
         console.warn("Nu s-a putut încărca 'strat_qgis.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
         addQGISLayer(defaultFallbackData, "Poligon Chișinău (Demo)");
-      });
-  </script>
-
 </body>
 </html>
