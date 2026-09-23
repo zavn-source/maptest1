@@ -167,7 +167,7 @@
     }
 
     // 5. Încărcăm fișierul GeoJSON din QGIS (cu tratare de eroare)
-    fetch('strat_qgis.geojson')
+    fetch('../straturi/strat_qgis.geojson')
       .then(response => {
         if (!response.ok) {
           throw new Error('Fișierul strat_qgis.geojson nu a fost găsit.');
@@ -183,15 +183,19 @@
         renderGeoJSON(defaultFallbackData, "Poligon Chișinău (Demo)");
       });
 
-    // 6. Instrumentul de Măsurat (Riglă)
-    new L.Control.Measure({
-      position: 'topleft',
-      primaryLengthUnit: 'meters',
-      secondaryLengthUnit: 'kilometers',
-      primaryAreaUnit: 'sqmeters',
-      completedColor: '#9b2d20',
-      localization: 'ro'
-    }).addTo(map);
+    // Instrumentul de Măsurat (fără auto-pan la plasarea punctelor)
+const measureControl = new L.Control.Measure({
+  position: 'topleft',
+  primaryLengthUnit: 'meters',
+  secondaryLengthUnit: 'kilometers',
+  primaryAreaUnit: 'sqmeters',
+  completedColor: '#9b2d20',
+  localization: 'ro',
+  popupOptions: {
+    autoPan: false // Împiedică harta să se miște singură când pui un punct
+  }
+});
+measureControl.addTo(map);
 
     // 7. Slider pentru Opacitate
     const opacityControl = L.control({ position: 'bottomright' });
