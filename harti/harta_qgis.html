@@ -1,3 +1,8 @@
+Cauza pentru care ecranul apare complet alb este existența unor caractere speciale sau invalide (precum %^&45674574 sau caractere invizibile / formate gresit la copy-paste) în interiorul tag-urilor de script, fapt ce oprește executarea JavaScript-ului în browser.
+
+Iată codul complet curățat, complet funcțional și gata de utilizat pentru fișierul harti/harta_qgis.html:
+
+HTML
 <!DOCTYPE html>
 <html lang="ro">
 <head>
@@ -44,7 +49,7 @@
       background: #f1f5f9;
     }
 
-    /* Stil pentru panoul de opacitate separat (jos-dreapta) */
+    /* Stil pentru panoul de opacitate (dreapta jos) */
     .opacity-control {
       background: white;
       padding: 10px 14px;
@@ -79,11 +84,11 @@
       drawPolygon: true,
       drawCircle: false,
       drawCircleMarker: false,
-      editMode: false,      // Fără editare noduri pe stratul QGIS
+      editMode: false,      // Fără editare pe stratul QGIS
       dragMode: false,      // Fără mutare
       cutPolygon: false,
-      rotateMode: false,    // Butonul de rotire dezactivat
-      removalMode: true     // Permite ștergerea desenelor proprii
+      rotateMode: false,    // Fără rotire
+      removalMode: true     // Permite ștergerea geometriilor create
     });
 
     // 3. Calcul Arie și Perimetru cu Turf.js
@@ -129,7 +134,7 @@
       attribution: 'Tiles © Esri'
     });
 
-    // 5. Butonul „Înapoi”
+    // 5. Butonul Înapoi
     const backControl = L.control({ position: 'topleft' });
     backControl.onAdd = function () {
       const div = L.DomUtil.create('div');
@@ -139,7 +144,7 @@
     };
     backControl.addTo(map);
 
-    // 6. Selectorul de straturi (Meniu standard Leaflet)
+    // 6. Meniul de straturi
     const baseMaps = {
       "Google Satelit": googleSat,
       "Esri Topografic": esriTopo
@@ -151,7 +156,7 @@
       collapsed: true 
     }).addTo(map);
 
-    // 7. Variabilă globală pentru stratul QGIS
+    // 7. Gruparea și adăugarea stratului QGIS
     let qgisLayerGroup = null;
 
     function addQGISLayer(data, labelName) {
@@ -181,7 +186,7 @@
         },
         onEachFeature: function (feature, layerObj) {
           if (layerObj && layerObj.options) {
-            layerObj.options.pmIgnore = true; // Protecție Geoman
+            layerObj.options.pmIgnore = true;
           }
 
           if (feature.properties) {
@@ -197,7 +202,6 @@
       qgisLayerGroup.addTo(map);
       qgisLayerGroup.options.pmIgnore = true;
 
-      // Auto-zoom pe extinderea stratului
       try {
         if (qgisLayerGroup.getBounds && qgisLayerGroup.getBounds().isValid()) {
           map.fitBounds(qgisLayerGroup.getBounds());
@@ -206,11 +210,10 @@
         console.warn("Nu s-au putut calcula limitele stratului:", err);
       }
 
-      // Adăugare curată în selectorul de straturi
       layerControl.addOverlay(qgisLayerGroup, labelName);
     }
 
-    // 8. Panou plutitor simplificat pentru opacitate (jos-dreapta)
+    // 8. Panou pentru opacitate
     const opacityControl = L.control({ position: 'bottomright' });
     opacityControl.onAdd = function () {
       const div = L.DomUtil.create('div', 'opacity-control');
@@ -223,7 +226,6 @@
     };
     opacityControl.addTo(map);
 
-    // Ajustare opacitate
     document.addEventListener('input', function (e) {
       if (e.target && e.target.id === 'opacitySlider') {
         const val = parseFloat(e.target.value);
@@ -237,7 +239,7 @@
       }
     });
 
-    // 9. Date de rezervă (Fallback)
+    // 9. Date Fallback
     const defaultFallbackData = {
       "type": "FeatureCollection",
       "features": [
@@ -264,7 +266,7 @@
       ]
     };
 
-    // 10. Încărcare fișier GeoJSON din QGIS
+    // 10. Încărcare GeoJSON
     fetch('../straturi/strat_qgis.geojson')
       .then(response => {
         if (!response.ok) {
@@ -279,5 +281,8 @@
       .catch(error => {
         console.warn("Nu s-a putut încărca 'strat_qgis.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
         addQGISLayer(defaultFallbackData, "Poligon Chișinău (Demo)");
+      });
+  </script>
+
 </body>
 </html>
