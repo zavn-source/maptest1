@@ -146,28 +146,27 @@
     };
     backControl.addTo(map);
 
-   // 6. Meniul de straturi cu sprijin nativ pentru deschidere la CLICK
+// 6. Meniul de straturi cu deschidere la CLICK
     const baseMaps = {
       "Google Satelit": googleSat,
       "Esri Topografic": esriTopo
     };
     const overlayMaps = {};
     
-    // collapsed: true face ca meniul să fie strâns nativ
     const layerControl = L.control.layers(baseMaps, overlayMaps, { 
       position: 'topright',
       collapsed: true 
     }).addTo(map);
 
-    // Împiedicăm deschiderea la trecerea cursorului (hover)
     const layerContainer = layerControl.getContainer();
+    
+    // Отключаем открытие по наведению курсора (hover)
     L.DomEvent.off(layerContainer, 'mouseover', layerControl._expand, layerControl);
     L.DomEvent.off(layerContainer, 'mouseout', layerControl._collapse, layerControl);
 
-    // Deschidere/Închidere doar la click pe butonul meniului
+    // Переключение меню строго по клику на иконку
     let menuOpen = false;
     L.DomEvent.on(layerContainer, 'click', function (e) {
-      // Dăm toggle doar dacă s-a apasat pe iconiță/buton
       if (e.target.classList.contains('leaflet-control-layers-toggle')) {
         if (menuOpen) {
           layerControl.collapse();
@@ -179,11 +178,10 @@
       }
     });
 
-    // Oprim propagarea evenimentelor pe meniu (să nu facă zoom/click pe hartă când umbli la slider)
     L.DomEvent.disableClickPropagation(layerContainer);
     L.DomEvent.disableScrollPropagation(layerContainer);
-
-// 7. Funcție optimizată pentru adăugarea straturilor QGIS cu control dedicat de opacitate
+    
+// 7. Funcție optimizată pentru adăugarea straturilor QGIS cu control de opacitate
     let layerCounter = 0;
     function addQGISLayer(data, labelName) {
       if (!data) return;
@@ -191,9 +189,9 @@
       layerCounter++;
       const layerId = 'qgis_layer_' + layerCounter;
 
-      // Creăm stratul GeoJSON
+      // stratul GeoJSON
       const qgisLayerGroup = L.geoJSON(data, {
-        style: function(feature) {
+        style: function () {
           return {
             color: "#ff3300",
             weight: 3,
@@ -203,7 +201,7 @@
           };
         },
         pointToLayer: function (feature, latlng) {
-          return L.circleMarker(latlng, {
+          const marker = L.circleMarker(latlng, {
             radius: 8,
             fillColor: "#ff3300",
             color: "#000",
@@ -211,11 +209,12 @@
             opacity: 1,
             fillOpacity: 0.8
           });
+          marker.options.pmIgnore = true;
+          return marker;
         },
         onEachFeature: function (feature, layerObj) {
-          // Protejăm fiecare obiect individual pentru a nu fi modificat de Geoman
-          if (layerObj.options) {
-            layerObj.options.pmIgnore = true;
+          if (layerObj && layerObj.options) {
+            layerObj.options.pmIgnore = true; // reparare Geoman
           }
 
           if (feature.properties) {
@@ -228,13 +227,11 @@
         }
       });
 
-      // Îl adăugăm pe hartă
+      // adaugare pe harta
       qgisLayerGroup.addTo(map);
-
-      // Protejăm și grupul la nivel de Geoman
       qgisLayerGroup.options.pmIgnore = true;
 
-      // Zoom automat pe extinderea stratului
+      // auto scalare
       try {
         if (qgisLayerGroup.getBounds && qgisLayerGroup.getBounds().isValid()) {
           map.fitBounds(qgisLayerGroup.getBounds());
@@ -243,29 +240,26 @@
         console.warn("Nu s-au putut calcula limitele stratului:", err);
       }
 
-      // Salvăm referința globală pentru slider
+      // save linkul global
       window[layerId] = qgisLayerGroup;
 
-      // HTML pentru numele stratului și slider-ul de opacitate
-      const labelHTML = `
-        <span style="font-weight:bold; color:#0f172a;">${labelName}</span>
-        <div class="layer-opacity-control" onclick="event.stopPropagation();">
-          Opacitate: <input type="range" min="0" max="1" step="0.1" value="0.3" 
-            onclick="event.stopPropagation();"
-            oninput="changeLayerOpacity('${layerId}', this.value)">
-        </div>
-      `;
+      // HTML inauntrul modificarii straturilor
+      const labelHTML = `${labelName}<br>` +
+        `<div class="layer-opacity-control" style="margin-top:2px;" onclick="event.stopPropagation();">` +
+        `Opacitate: <input type="range" min="0" max="1" step="0.1" value="0.3" ` +
+        `oninput="changeLayerOpacity('${layerId}', this.value)" onclick="event.stopPropagation();">` +
+        `</div>`;
 
-      // Adăugăm stratul validat în meniul de straturi
+      // registrarea stratului in meiul Leaflet
       layerControl.addOverlay(qgisLayerGroup, labelHTML);
     }
 
-    // Funcție apelată de slider pentru schimbarea opacității tuturor sub-straturilor
-    window.changeLayerOpacity = function(layerId, val) {
+    // modificarea opacitatii tuturor geometriilor in strat
+    window.changeLayerOpacity = function (layerId, val) {
       const targetLayer = window[layerId];
       if (targetLayer) {
         const opacityVal = parseFloat(val);
-        targetLayer.eachLayer(function(l) {
+        targetLayer.eachLayer(function (l) {
           if (l.setStyle) {
             l.setStyle({ fillOpacity: opacityVal, opacity: opacityVal });
           }
