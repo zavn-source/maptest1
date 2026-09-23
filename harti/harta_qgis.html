@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="ro">
 <head>
-  <title>Hartă Interactivă Chișinău - Strat QGIS</title>
+  <title>Hartă Interactivă</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- CSS Leaflet -->
+  <!-- CSS & JS Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- CSS Plugin Măsurători (Riglă) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-measure@3.1.0/dist/leaflet-measure.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- CSS & JS pentru Leaflet Geoman (Unelte Măsurare & Desenare) -->
+  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
+  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 
   <style>
     body { 
@@ -59,16 +62,35 @@
 
   <div id="map"></div>
 
-  <!-- JS Leaflet -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- JS Plugin Măsurători -->
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-measure@3.1.0/dist/leaflet-measure.min.js"></script>
-
   <script>
     // 1. Inițializăm harta pe coordonatele Chișinăului
     const map = L.map('map').setView([47.0167, 28.8333], 13);
 
-    // 2. Straturile de fundal (Base Layers)
+    // -------------------------------------------------------------
+    // 2. Inițializare Bara de Unelte Geoman (Măsurat/Desenat)
+    // -------------------------------------------------------------
+    map.pm.addControls({
+      position: 'topleft',
+      drawMarker: true,
+      drawPolyline: true,
+      drawRectangle: true,
+      drawPolygon: true,
+      drawCircle: false,
+      drawCircleMarker: false,
+      editMode: true,
+      dragMode: false,
+      cutPolygon: false,
+      removalMode: true
+    });
+
+    // Setăm opțiunea de măsurare direct pe ecran
+    map.pm.setGlobalOptions({
+      measurements: {
+        displayFormat: 'metric' // Arată metri/kilometri și m²
+      }
+    });
+
+    // 3. Straturile de fundal (Base Layers)
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
       maxZoom: 20,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -80,7 +102,7 @@
       attribution: '© CARTO / OpenStreetMap'
     });
 
-    // 3. Adăugăm Butonul „Înapoi la Lista de Hărți”
+    // 4. Adăugăm Butonul „Înapoi la Lista de Hărți”
     const backControl = L.control({ position: 'topleft' });
     backControl.onAdd = function () {
       const div = L.DomUtil.create('div');
@@ -90,7 +112,7 @@
     };
     backControl.addTo(map);
 
-    // 4. Selectorul de straturi
+    // 5. Selectorul de straturi
     const baseMaps = {
       "Google Satelit": googleSat,
       "Hartă Deschisă (CARTO)": osm
@@ -100,7 +122,7 @@
 
     let qgisLayer; // Stratul vectorial
 
-    // Poligon de rezervă (Fallback) în Chișinău dacă fișierul GeoJSON extern nu este găsit
+    // Poligon de rezervă (Fallback)
     const defaultFallbackData = {
       "type": "FeatureCollection",
       "features": [
@@ -162,11 +184,11 @@
         map.fitBounds(qgisLayer.getBounds());
       }
 
-      // Adăugăm în meniul din dreapta-sus
+      // Adăugare în meniul din dreapta-sus
       layerControl.addOverlay(qgisLayer, label);
     }
 
-    // 5. Încărcăm fișierul GeoJSON din QGIS (cu tratare de eroare)
+    // 6. Încărcare fișier GeoJSON din QGIS
     fetch('../straturi/strat_qgis.geojson')
       .then(response => {
         if (!response.ok) {
@@ -182,20 +204,6 @@
         console.warn("Nu s-a putut încărca 'strat_qgis.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
         renderGeoJSON(defaultFallbackData, "Poligon Chișinău (Demo)");
       });
-
-    // Instrumentul de Măsurat (fără auto-pan la plasarea punctelor)
-const measureControl = new L.Control.Measure({
-  position: 'topleft',
-  primaryLengthUnit: 'meters',
-  secondaryLengthUnit: 'kilometers',
-  primaryAreaUnit: 'sqmeters',
-  completedColor: '#9b2d20',
-  localization: 'ro',
-  popupOptions: {
-    autoPan: false // Împiedică harta să se miște singură când pui un punct
-  }
-});
-measureControl.addTo(map);
 
     // 7. Slider pentru Opacitate
     const opacityControl = L.control({ position: 'bottomright' });
@@ -218,5 +226,7 @@ measureControl.addTo(map);
     });
   </script>
 
+</body>
+</html>
 </body>
 </html>
