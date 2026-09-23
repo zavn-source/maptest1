@@ -9,9 +9,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- CSS & JS pentru Leaflet Geoman -->
+  <!-- CSS & JS Leaflet Geoman -->
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+
+  <!-- JS Turf.js pentru calcule exacte de arie și perimetru -->
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <style>
     body { 
@@ -41,20 +44,28 @@
       background: #f1f5f9;
     }
 
-    /* Stil pentru panoul de opacitate */
-    .opacity-control {
-      background: white;
-      padding: 10px 14px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      font-size: 13px;
-      font-weight: bold;
+    /* Stil pentru controalele de opacitate din selectorul de straturi */
+    .layer-opacity-control {
+      margin-top: 4px;
+      margin-bottom: 8px;
+      font-size: 11px;
+      color: #475569;
     }
-    .opacity-control input {
-      display: block;
-      margin-top: 5px;
-      cursor: pointer;
+    .layer-opacity-control input {
       width: 100%;
+      cursor: pointer;
+      margin-top: 2px;
+    }
+
+    /* Stil pentru titlurile de secțiune din selectorul de straturi */
+    .leaflet-control-layers-group-title {
+      font-weight: bold;
+      font-size: 12px;
+      color: #0f172a;
+      border-bottom: 1px solid #e2e8f0;
+      margin-top: 6px;
+      margin-bottom: 4px;
+      padding-bottom: 2px;
     }
   </style>
 </head>
@@ -66,7 +77,7 @@
     // 1. Inițializăm harta pe coordonatele Chișinăului
     const map = L.map('map').setView([47.0167, 28.8333], 13);
 
-    // 2. Setări Geoman + Activare Măsurători
+    // 2. Setări Geoman + Activare Măsurători (fără opțiunea de rotire)
     map.pm.addControls({
       position: 'topleft',
       drawMarker: true,
@@ -75,75 +86,57 @@
       drawPolygon: true,
       drawCircle: false,
       drawCircleMarker: false,
-      editMode: false,      // Fără editare noduri pe stratul extern
+      editMode: false,      // Fără editare noduri pe straturi externe
       dragMode: false,      // Fără mutare
       cutPolygon: false,
-      removalMode: true     // Permite ștergerea DOAR a geometriilor desenate de tine
+      rotateMode: false,    // Butonul de rotire a fost scos
+      removalMode: true     // Permite ștergerea geometriilor desenate
     });
 
-    // Configurare opțiuni globale de măsurare
-    map.pm.setGlobalOptions({
-      tooltips: true,
-      measurements: {
-        measurement: true,
-        displayFormat: 'metric' // m, km, m²
-      }
-    });
-
-    // Calculează și afișează lungimea / aria în popup pentru fiecare geometrie desenată
+    // 3. Calcul Arie și Perimetru cu Turf.js la crearea geometriilor
     map.on('pm:create', function(e) {
       const layer = e.layer;
       
-      // Dacă stratul desenat este protejat, nu facem nimic
       if (layer.options && layer.options.pmIgnore) return;
 
+      const geojson = layer.toGeoJSON();
+
       if (e.shape === 'Line' || e.shape === 'Polyline') {
-        let distance = 0;
-        const latlngs = layer.getLatLngs();
-        for (let i = 0; i < latlngs.length - 1; i++) {
-          distance += latlngs[i].distanceTo(latlngs[i + 1]);
-        }
-        let text = distance > 1000 
-          ? (distance / 1000).toFixed(2) + ' km' 
-          : distance.toFixed(1) + ' m';
+        const lengthMeters = turf.length(geojson, { units: 'meters' });
+        let text = lengthMeters > 1000 
+          ? (lengthMeters / 1000).toFixed(2) + ' km' 
+          : lengthMeters.toFixed(1) + ' m';
         layer.bindPopup(`<b>Lungime:</b> ${text}`).openPopup();
       } 
       else if (e.shape === 'Polygon' || e.shape === 'Rectangle') {
-        const latlngs = layer.getLatLngs()[0];
-        // Calcul arie folosind L.GeometryUtil sau calcul aproximativ
-        let area = 0;
-        if (L.GeometryUtil && L.GeometryUtil.geodesicArea) {
-          area = L.GeometryUtil.geodesicArea(latlngs);
-        } else {
-          // Calcul perimetru ca fallback
-          let perimeter = 0;
-          for (let i = 0; i < latlngs.length; i++) {
-            let nextIndex = (i + 1) % latlngs.length;
-            perimeter += latlngs[i].distanceTo(latlngs[nextIndex]);
-          }
-          layer.bindPopup(`<b>Perimetru:</b> ${perimeter > 1000 ? (perimeter/1000).toFixed(2) + ' km' : perimeter.toFixed(1) + ' m'}`).openPopup();
-          return;
-        }
-        let text = area > 10000 
-          ? (area / 10000).toFixed(2) + ' ha (' + (area / 1000000).toFixed(2) + ' km²)' 
-          : area.toFixed(1) + ' m²';
-        layer.bindPopup(`<b>Suprafață:</b> ${text}`).openPopup();
+        const areaM2 = turf.area(geojson);
+        const perimeterMeters = turf.length(geojson, { units: 'meters' });
+
+        let areaText = areaM2 >= 10000 
+          ? (areaM2 / 10000).toFixed(2) + ' ha (' + (areaM2 / 1000000).toFixed(2) + ' km²)' 
+          : areaM2.toFixed(1) + ' m²';
+
+        let perimText = perimeterMeters >= 1000 
+          ? (perimeterMeters / 1000).toFixed(2) + ' km' 
+          : perimeterMeters.toFixed(1) + ' m';
+
+        layer.bindPopup(`<b>Suprafață:</b> ${areaText}<br><b>Perimetru:</b> ${perimText}`).openPopup();
       }
     });
 
-    // 3. Straturile de fundal
+    // 4. Straturile de fundal (Base Layers)
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
       maxZoom: 20,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       attribution: '© Google Maps'
     }).addTo(map);
 
-    const osm = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    const esriTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      attribution: '© CARTO / OpenStreetMap'
+      attribution: 'Tiles © Esri'
     });
 
-    // 4. Butonul „Înapoi”
+    // 5. Butonul „Înapoi”
     const backControl = L.control({ position: 'topleft' });
     backControl.onAdd = function () {
       const div = L.DomUtil.create('div');
@@ -153,17 +146,137 @@
     };
     backControl.addTo(map);
 
-    // 5. Selectorul de straturi
+    // 6. Selectorul de straturi (se deschide/închide la CLICK, nu la hover)
     const baseMaps = {
       "Google Satelit": googleSat,
-      "Hartă Deschisă (CARTO)": osm
+      "Esri Topografic": esriTopo
     };
     const overlayMaps = {};
-    const layerControl = L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
+    
+    const layerControl = L.control.layers(baseMaps, overlayMaps, { 
+      position: 'topright',
+      collapsed: true 
+    }).addTo(map);
 
-    let qgisLayer;
+    // Modificăm selectorul de straturi pentru a funcționa la CLICK
+    const layerControlContainer = layerControl.getContainer();
+    layerControlContainer.removeAttribute('onmouseover');
+    layerControlContainer.removeAttribute('onmouseout');
+    
+    L.DomEvent.off(layerControlContainer, 'mouseover', layerControl._expand, layerControl);
+    L.DomEvent.off(layerControlContainer, 'mouseout', layerControl._collapse, layerControl);
 
-    // Poligon de rezervă (Fallback)
+    let isExpanded = false;
+    L.DomEvent.on(layerControlContainer, 'click', function(e) {
+      // Dăm expand/collapse doar dacă s-a dat click pe butonul sau pe zona de titlu
+      if (e.target.classList.contains('leaflet-control-layers-toggle') || e.target === layerControlContainer) {
+        if (isExpanded) {
+          layerControl.collapse();
+          isExpanded = false;
+        } else {
+          layerControl.expand();
+          isExpanded = true;
+        }
+      }
+    });
+
+    // Împiedicăm închiderea când se interacționează cu sliderul de opacitate
+    L.DomEvent.disableClickPropagation(layerControlContainer);
+
+    // 7. Funcție pentru adăugarea straturilor QGIS cu control dedicat de opacitate
+    let layerCounter = 0;
+    function addQGISLayer(data, labelName) {
+      layerCounter++;
+      const layerId = 'qgis_layer_' + layerCounter;
+
+      const layer = L.geoJSON(data, {
+        pmIgnore: true, // Protejat la editare/ștergere
+        style: {
+          color: "#ff3300",
+          weight: 3,
+          fillColor: "#ffff00",
+          fillOpacity: 0.3
+        },
+        pointToLayer: function (feature, latlng) {
+          return L.circleMarker(latlng, {
+            radius: 8,
+            fillColor: "#ff3300",
+            color: "#000",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          });
+        },
+        onEachFeature: function (feature, layerObj) {
+          if (feature.properties) {
+            let popupContent = "<b>Atribute obiect:</b><br><hr style='margin:4px 0;'>";
+            for (let prop in feature.properties) {
+              popupContent += `<b>${prop}:</b> ${feature.properties[prop]}<br>`;
+            }
+            layerObj.bindPopup(popupContent);
+          }
+        }
+      }).addTo(map);
+
+      if (layer.getBounds().isValid()) {
+        map.fitBounds(layer.getBounds());
+      }
+
+      // Adăugăm stratul în selectorul de straturi (în secțiunea de sus)
+      const labelHTML = `
+        <span>${labelName}</span>
+        <div class="layer-opacity-control">
+          Opacitate: <input type="range" min="0" max="1" step="0.1" value="0.3" 
+            oninput="changeLayerOpacity('${layerId}', this.value)">
+        </div>
+      `;
+
+      window[layerId] = layer;
+      layerControl.addOverlay(layer, labelHTML);
+
+      // Reorganizăm ordinea din meniu: QGIS sus, Hărți de fundal jos
+      reorderLayerControl();
+    }
+
+    // Schimbare opacitate pentru un anumit strat
+    window.changeLayerOpacity = function(layerId, val) {
+      const targetLayer = window[layerId];
+      if (targetLayer) {
+        const opacityVal = parseFloat(val);
+        targetLayer.setStyle({ fillOpacity: opacityVal, opacity: opacityVal });
+      }
+    };
+
+    // Funcție pentru reorganizarea vizuală a meniului
+    function reorderLayerControl() {
+      setTimeout(() => {
+        const overlaysList = layerControlContainer.querySelector('.leaflet-control-layers-overlays');
+        const baseList = layerControlContainer.querySelector('.leaflet-control-layers-base');
+        const form = layerControlContainer.querySelector('form');
+
+        if (overlaysList && baseList && form) {
+          // Mutăm lista de straturi vectoriale (QGIS) deasupra celei de hărți de fundal
+          form.insertBefore(overlaysList, baseList);
+
+          // Adăugăm titluri explicative dacă nu există
+          if (!form.querySelector('.qgis-header')) {
+            const qgisHeader = document.createElement('div');
+            qgisHeader.className = 'leaflet-control-layers-group-title qgis-header';
+            qgisHeader.innerText = 'Straturi QGIS / Vectoriale';
+            form.insertBefore(qgisHeader, overlaysList);
+          }
+
+          if (!form.querySelector('.base-header')) {
+            const baseHeader = document.createElement('div');
+            baseHeader.className = 'leaflet-control-layers-group-title base-header';
+            baseHeader.innerText = 'Hărți de Fundal';
+            form.insertBefore(baseHeader, baseList);
+          }
+        }
+      }, 50);
+    }
+
+    // 8. Date fallback
     const defaultFallbackData = {
       "type": "FeatureCollection",
       "features": [
@@ -190,45 +303,7 @@
       ]
     };
 
-    // Funcție pentru adăugarea datelor GeoJSON pe hartă
-    function renderGeoJSON(data, label) {
-      qgisLayer = L.geoJSON(data, {
-        pmIgnore: true, // Stratul GeoJSON din QGIS este protejat complet
-        style: {
-          color: "#ff3300",
-          weight: 3,
-          fillColor: "#ffff00",
-          fillOpacity: 0.3
-        },
-        pointToLayer: function (feature, latlng) {
-          return L.circleMarker(latlng, {
-            radius: 8,
-            fillColor: "#ff3300",
-            color: "#000",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-          });
-        },
-        onEachFeature: function (feature, layer) {
-          if (feature.properties) {
-            let popupContent = "<b>Atribute obiect:</b><br><hr style='margin:4px 0;'>";
-            for (let prop in feature.properties) {
-              popupContent += `<b>${prop}:</b> ${feature.properties[prop]}<br>`;
-            }
-            layer.bindPopup(popupContent);
-          }
-        }
-      }).addTo(map);
-
-      if (qgisLayer.getBounds().isValid()) {
-        map.fitBounds(qgisLayer.getBounds());
-      }
-
-      layerControl.addOverlay(qgisLayer, label);
-    }
-
-    // 6. Încărcare fișier GeoJSON din QGIS
+    // 9. Încărcare fișier GeoJSON din QGIS
     fetch('../straturi/strat_qgis.geojson')
       .then(response => {
         if (!response.ok) {
@@ -238,32 +313,12 @@
       })
       .then(data => {
         console.log("Fișierul strat_qgis.geojson a fost încărcat cu succes.");
-        renderGeoJSON(data, "Strat din QGIS");
+        addQGISLayer(data, "Strat din QGIS");
       })
       .catch(error => {
         console.warn("Nu s-a putut încărca 'strat_qgis.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
-        renderGeoJSON(defaultFallbackData, "Poligon Chișinău (Demo)");
+        addQGISLayer(defaultFallbackData, "Poligon Chișinău (Demo)");
       });
-
-    // 7. Slider pentru Opacitate
-    const opacityControl = L.control({ position: 'bottomright' });
-    opacityControl.onAdd = function () {
-      const div = L.DomUtil.create('div', 'opacity-control');
-      div.innerHTML = `
-        <label for="opacitySlider">Opacitate strat:</label>
-        <input id="opacitySlider" type="range" min="0" max="1" step="0.1" value="0.3">
-      `;
-      L.DomEvent.disableClickPropagation(div);
-      return div;
-    };
-    opacityControl.addTo(map);
-
-    document.getElementById('opacitySlider').addEventListener('input', function (e) {
-      if (qgisLayer) {
-        const val = parseFloat(e.target.value);
-        qgisLayer.setStyle({ fillOpacity: val, opacity: val });
-      }
-    });
   </script>
 
 </body>
