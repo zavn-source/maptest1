@@ -268,7 +268,7 @@
             "funct_corectat_3": "1",
             "Nume": "Zonă demonstrativă Chișinău",
             "Sursa": "Poligon implicit (Fallback)",
-            "Descriere": "Dacă vezi acest poligon, înseamnă că fișierul strat_qgis.geojson nu a fost încărcat sau lipsește."
+            "Descriere": "Dacă vezi acest poligon, înseamnă că fișierul Zonificare.geojson nu a fost găsit în folderul straturi."
           },
           "geometry": {
             "type": "Polygon",
@@ -286,20 +286,20 @@
       ]
     };
 
-    // 11. Încărcare GeoJSON
-    fetch('../straturi/strat_qgis.geojson')
+    // 11. Încărcare GeoJSON din folderul straturi
+    fetch('../straturi/Zonificare.geojson')
       .then(response => {
         if (!response.ok) {
-          throw new Error('Fișierul strat_qgis.geojson nu a fost găsit.');
+          throw new Error('Fișierul Zonificare.geojson nu a fost găsit.');
         }
         return response.json();
       })
       .then(data => {
-        console.log("Fișierul strat_qgis.geojson a fost încărcat cu succes.");
+        console.log("Fișierul Zonificare.geojson a fost încărcat cu succes.");
         addQGISLayer(data, "Zonificare PUG/PUZ");
       })
       .catch(error => {
-        console.warn("Nu s-a putut încărca 'strat_qgis.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
+        console.warn("Nu s-a putut încărca 'Zonificare.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
         addQGISLayer(defaultFallbackData, "Poligon Chișinău (Demo)");
       });
   </script>
