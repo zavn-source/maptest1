@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="ro">
 <head>
-  <title>Hartă Interactivă</title>
+  <title>Hartă Interactivă - PUG/PUZ/PUD</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -152,26 +152,49 @@
       collapsed: true 
     }).addTo(map);
 
-    // 7. Gruparea și adăugarea stratului QGIS
+    // 7. Funcție pentru obținerea culorilor pe baza codului din legenda QGIS
+    function getColorByValoare(val) {
+      const num = Number(val);
+      switch (num) {
+        case 0:  return '#FF0000'; // Roșu - Lucrări tehnico-edilitare
+        case 1:  return '#F2E385'; // Galben deschis - Locuințe
+        case 2:  return '#D9534F'; // Roșu/Carămiziu - Construcții publice / afaceri
+        case 3:  return '#8B7D7B'; // Gri/Maro - Industriale și agricole
+        case 4:  return '#9BE3DE'; // Turcoaz/Verde deschis - Destinație specială
+        case 5:  return '#B5E655'; // Verde deschis - Recreere
+        case 6:  return '#75996A'; // Verde închis - Suprafețe forestiere
+        case 7:  return '#D2EBE3'; // Albastru foarte deschis - Suprafețe acvatice
+        case 8:  return '#DEECC0'; // Verde-galben deschis - Terenuri agricole / grădini
+        case 9:  return '#A8A8A8'; // Gri - Circulație rutieră
+        case 10: return '#B0B0B0'; // Gri - Alte terenuri
+        default: return '#5B82C6'; // Albastru - Alte valori
+      }
+    }
+
+    // 8. Gruparea și adăugarea stratului QGIS
     let qgisLayerGroup = null;
 
     function addQGISLayer(data, labelName) {
       if (!data) return;
 
       qgisLayerGroup = L.geoJSON(data, {
-        style: function () {
+        style: function (feature) {
+          // Preluăm cifra din câmpul "funct_corectat_3"
+          const valAtribut = feature.properties ? feature.properties["funct_corectat_3"] : null;
+
           return {
-            color: "#ff3300",
-            weight: 3,
-            fillColor: "#ffff00",
-            fillOpacity: 0.3,
+            color: "#4A4A4A",                        // Contur gri închis
+            weight: 0.8,                             // Grosime contur
+            fillColor: getColorByValoare(valAtribut), // Culoarea stabilită din legendă
+            fillOpacity: 0.7,                        // Opacitate umplere inițială
             opacity: 1
           };
         },
         pointToLayer: function (feature, latlng) {
+          const valAtribut = feature.properties ? feature.properties["funct_corectat_3"] : null;
           const marker = L.circleMarker(latlng, {
             radius: 8,
-            fillColor: "#ff3300",
+            fillColor: getColorByValoare(valAtribut),
             color: "#000",
             weight: 1,
             opacity: 1,
@@ -209,13 +232,13 @@
       layerControl.addOverlay(qgisLayerGroup, labelName);
     }
 
-    // 8. Panou pentru opacitate
+    // 9. Panou pentru opacitate
     const opacityControl = L.control({ position: 'bottomright' });
     opacityControl.onAdd = function () {
       const div = L.DomUtil.create('div', 'opacity-control');
       div.innerHTML = `
-        <label for="opacitySlider">Opacitate strat QGIS:</label>
-        <input id="opacitySlider" type="range" min="0" max="1" step="0.1" value="0.3">
+        <label for="opacitySlider">Opacitate zonificare:</label>
+        <input id="opacitySlider" type="range" min="0" max="1" step="0.1" value="0.7">
       `;
       L.DomEvent.disableClickPropagation(div);
       return div;
@@ -228,20 +251,21 @@
         if (qgisLayerGroup) {
           qgisLayerGroup.eachLayer(function (l) {
             if (l.setStyle) {
-              l.setStyle({ fillOpacity: val, opacity: val });
+              l.setStyle({ fillOpacity: val });
             }
           });
         }
       }
     });
 
-    // 9. Date Fallback
+    // 10. Date Fallback (Poligon demonstrativ dacă fișierul lipsește)
     const defaultFallbackData = {
       "type": "FeatureCollection",
       "features": [
         {
           "type": "Feature",
           "properties": {
+            "funct_corectat_3": "1",
             "Nume": "Zonă demonstrativă Chișinău",
             "Sursa": "Poligon implicit (Fallback)",
             "Descriere": "Dacă vezi acest poligon, înseamnă că fișierul strat_qgis.geojson nu a fost încărcat sau lipsește."
@@ -262,7 +286,7 @@
       ]
     };
 
-    // 10. Încărcare GeoJSON
+    // 11. Încărcare GeoJSON
     fetch('../straturi/strat_qgis.geojson')
       .then(response => {
         if (!response.ok) {
@@ -272,7 +296,7 @@
       })
       .then(data => {
         console.log("Fișierul strat_qgis.geojson a fost încărcat cu succes.");
-        addQGISLayer(data, "Strat din QGIS");
+        addQGISLayer(data, "Zonificare PUG/PUZ");
       })
       .catch(error => {
         console.warn("Nu s-a putut încărca 'strat_qgis.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
