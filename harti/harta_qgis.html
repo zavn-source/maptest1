@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="ro">
 <head>
-  <title>Hartă Interactivă - PUG/PUZ/PUD</title>
+  <title>Hartă Interactivă - Zonificare PUG/PUZ/PUD</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -54,12 +54,48 @@
       font-size: 13px;
       font-weight: bold;
       color: #0f172a;
+      margin-bottom: 10px;
     }
     .opacity-control input {
       display: block;
       margin-top: 5px;
       cursor: pointer;
-      width: 120px;
+      width: 130px;
+    }
+
+    /* Stil pentru Legenda Cartografică (stânga jos) */
+    .legend-control {
+      background: white;
+      padding: 12px 14px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      font-size: 12px;
+      color: #1e293b;
+      max-height: 280px;
+      overflow-y: auto;
+      line-height: 1.4;
+      max-width: 280px;
+    }
+    .legend-title {
+      font-weight: bold;
+      font-size: 13px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+      color: #0f172a;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      margin-right: 8px;
+      border: 1px solid #475569;
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -80,17 +116,16 @@
       drawPolygon: true,
       drawCircle: false,
       drawCircleMarker: false,
-      editMode: false,      // Fără editare pe stratul QGIS
-      dragMode: false,      // Fără mutare
+      editMode: false,
+      dragMode: false,
       cutPolygon: false,
-      rotateMode: false,    // Fără rotire
-      removalMode: true     // Permite ștergerea geometriilor create
+      rotateMode: false,
+      removalMode: true
     });
 
     // 3. Calcul Arie și Perimetru cu Turf.js
     map.on('pm:create', function(e) {
       const layer = e.layer;
-      
       if (layer.options && layer.options.pmIgnore) return;
 
       const geojson = layer.toGeoJSON();
@@ -140,7 +175,7 @@
     };
     backControl.addTo(map);
 
-    // 6. Meniul de straturi
+    // 6. Meniul de straturi (Selector dreapta-sus)
     const baseMaps = {
       "Google Satelit": googleSat,
       "Esri Topografic": esriTopo
@@ -149,29 +184,31 @@
     
     const layerControl = L.control.layers(baseMaps, overlayMaps, { 
       position: 'topright',
-      collapsed: true 
+      collapsed: false 
     }).addTo(map);
 
-    // 7. Funcție pentru obținerea culorilor pe baza codului din legenda QGIS
+    // 7. Regulile de culori pentru legendă conform QGIS
+    const qgisLegendRules = [
+      { code: 0, color: '#FF0000', name: '0 - Constr. tehnico-edilitare' },
+      { code: 1, color: '#F2E385', name: '1 - Locuințe și funcț. compl.' },
+      { code: 2, color: '#D9534F', name: '2 - Constr. publice și afaceri' },
+      { code: 3, color: '#8B7D7B', name: '3 - Industriale și agricole' },
+      { code: 4, color: '#9BE3DE', name: '4 - Destinație specială' },
+      { code: 5, color: '#B5E655', name: '5 - Recreere' },
+      { code: 6, color: '#75996A', name: '6 - Suprafețe forestiere' },
+      { code: 7, color: '#D2EBE3', name: '7 - Suprafețe acvatice' },
+      { code: 8, color: '#DEECC0', name: '8 - Terenuri agricole / grădini' },
+      { code: 9, color: '#A8A8A8', name: '9 - Circulație rutieră' },
+      { code: 10, color: '#B0B0B0', name: '10 - Alte terenuri' }
+    ];
+
     function getColorByValoare(val) {
       const num = Number(val);
-      switch (num) {
-        case 0:  return '#FF0000'; // Roșu - Lucrări tehnico-edilitare
-        case 1:  return '#F2E385'; // Galben deschis - Locuințe
-        case 2:  return '#D9534F'; // Roșu/Carămiziu - Construcții publice / afaceri
-        case 3:  return '#8B7D7B'; // Gri/Maro - Industriale și agricole
-        case 4:  return '#9BE3DE'; // Turcoaz/Verde deschis - Destinație specială
-        case 5:  return '#B5E655'; // Verde deschis - Recreere
-        case 6:  return '#75996A'; // Verde închis - Suprafețe forestiere
-        case 7:  return '#D2EBE3'; // Albastru foarte deschis - Suprafețe acvatice
-        case 8:  return '#DEECC0'; // Verde-galben deschis - Terenuri agricole / grădini
-        case 9:  return '#A8A8A8'; // Gri - Circulație rutieră
-        case 10: return '#B0B0B0'; // Gri - Alte terenuri
-        default: return '#5B82C6'; // Albastru - Alte valori
-      }
+      const found = qgisLegendRules.find(r => r.code === num);
+      return found ? found.color : '#5B82C6';
     }
 
-    // 8. Gruparea și adăugarea stratului QGIS
+    // 8. Adăugarea stratului PUG pe hartă
     let qgisLayerGroup = null;
 
     function addQGISLayer(data, labelName) {
@@ -179,37 +216,21 @@
 
       qgisLayerGroup = L.geoJSON(data, {
         style: function (feature) {
-          // Preluăm cifra din câmpul "funct_corectat_3"
           const valAtribut = feature.properties ? feature.properties["funct_corectat_3"] : null;
-
           return {
-            color: "#4A4A4A",                        // Contur gri închis
-            weight: 0.8,                             // Grosime contur
-            fillColor: getColorByValoare(valAtribut), // Culoarea stabilită din legendă
-            fillOpacity: 0.7,                        // Opacitate umplere inițială
+            color: "#334155",
+            weight: 0.8,
+            fillColor: getColorByValoare(valAtribut),
+            fillOpacity: 0.7,
             opacity: 1
           };
-        },
-        pointToLayer: function (feature, latlng) {
-          const valAtribut = feature.properties ? feature.properties["funct_corectat_3"] : null;
-          const marker = L.circleMarker(latlng, {
-            radius: 8,
-            fillColor: getColorByValoare(valAtribut),
-            color: "#000",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-          });
-          marker.options.pmIgnore = true;
-          return marker;
         },
         onEachFeature: function (feature, layerObj) {
           if (layerObj && layerObj.options) {
             layerObj.options.pmIgnore = true;
           }
-
           if (feature.properties) {
-            let popupContent = "<b>Atribute obiect:</b><br><hr style='margin:4px 0;'>";
+            let popupContent = "<b>Atribute zonă:</b><br><hr style='margin:4px 0;'>";
             for (let prop in feature.properties) {
               popupContent += `<b>${prop}:</b> ${feature.properties[prop]}<br>`;
             }
@@ -229,15 +250,37 @@
         console.warn("Nu s-au putut calcula limitele stratului:", err);
       }
 
+      // Se adaugă ca strat separat în selectorul din dreapta-sus
       layerControl.addOverlay(qgisLayerGroup, labelName);
     }
 
-    // 9. Panou pentru opacitate
+    // 9. Legenda Cartografică (stânga-jos)
+    const legendControl = L.control({ position: 'bottomleft' });
+    legendControl.onAdd = function () {
+      const div = L.DomUtil.create('div', 'legend-control');
+      let html = `<div class="legend-title">🎨 Legendă Zonificare (PUG)</div>`;
+      
+      qgisLegendRules.forEach(rule => {
+        html += `
+          <div class="legend-item">
+            <div class="legend-color" style="background: ${rule.color};"></div>
+            <span>${rule.name}</span>
+          </div>
+        `;
+      });
+      
+      div.innerHTML = html;
+      L.DomEvent.disableClickPropagation(div);
+      return div;
+    };
+    legendControl.addTo(map);
+
+    // 10. Panou opacitate (dreapta-jos)
     const opacityControl = L.control({ position: 'bottomright' });
     opacityControl.onAdd = function () {
       const div = L.DomUtil.create('div', 'opacity-control');
       div.innerHTML = `
-        <label for="opacitySlider">Opacitate zonificare:</label>
+        <label for="opacitySlider">Opacitate Zonificare:</label>
         <input id="opacitySlider" type="range" min="0" max="1" step="0.1" value="0.7">
       `;
       L.DomEvent.disableClickPropagation(div);
@@ -258,49 +301,20 @@
       }
     });
 
-    // 10. Date Fallback (Poligon demonstrativ dacă fișierul lipsește)
-    const defaultFallbackData = {
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "properties": {
-            "funct_corectat_3": "1",
-            "Nume": "Zonă demonstrativă Chișinău",
-            "Sursa": "Poligon implicit (Fallback)",
-            "Descriere": "Dacă vezi acest poligon, înseamnă că fișierul Zonificare.geojson nu a fost găsit în folderul straturi."
-          },
-          "geometry": {
-            "type": "Polygon",
-            "coordinates": [
-              [
-                [28.8200, 47.0100],
-                [28.8500, 47.0100],
-                [28.8500, 47.0300],
-                [28.8200, 47.0300],
-                [28.8200, 47.0100]
-              ]
-            ]
-          }
-        }
-      ]
-    };
-
-    // 11. Încărcare GeoJSON din folderul straturi
-    fetch('../straturi/Zonificare.geojson')
+    // 11. Încărcare fișier zonificare_1.geojson
+    fetch('../straturi/zonificare_1.geojson')
       .then(response => {
         if (!response.ok) {
-          throw new Error('Fișierul Zonificare.geojson nu a fost găsit.');
+          throw new Error('Fișierul zonificare_1.geojson nu a fost găsit.');
         }
         return response.json();
       })
       .then(data => {
-        console.log("Fișierul Zonificare.geojson a fost încărcat cu succes.");
-        addQGISLayer(data, "Zonificare PUG/PUZ");
+        console.log("Fișierul zonificare_1.geojson a fost încărcat cu succes.");
+        addQGISLayer(data, "📍 Zonificare Funcțională PUG");
       })
       .catch(error => {
-        console.warn("Nu s-a putut încărca 'Zonificare.geojson'. Se afișează poligonul demonstrativ de rezervă în Chișinău.", error);
-        addQGISLayer(defaultFallbackData, "Poligon Chișinău (Demo)");
+        console.error("Eroare la încărcarea stratului:", error);
       });
   </script>
 
